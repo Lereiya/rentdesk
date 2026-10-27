@@ -29,13 +29,6 @@ export const Route = createFileRoute("/caretaker/dashboard")({
   component: CaretakerDashboard,
 });
 
-const DOC_KINDS: Record<string, string> = {
-  lease: "Lease agreement",
-  id: "National ID",
-  other: "Other",
-};
-const PREFIX = "tenant-docs:";
-
 function CaretakerDashboard() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -49,13 +42,12 @@ function CaretakerDashboard() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [issues, setIssues] = useState<any[]>([]);
 
-  // Financial Stats
   const [stats, setStats] = useState({
     collectedThisMonth: 0,
     expectedRentThisMonth: 0,
     totalArrears: 0,
   });
-  const [financeMonth, setFinanceMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [financeMonth, setFinanceMonth] = useState(new Date().toISOString().slice(0, 7));
 
   const [newTenant, setNewTenant] = useState({
     name: "",
@@ -67,17 +59,15 @@ function CaretakerDashboard() {
   });
   const [notice, setNotice] = useState({ target: "all", title: "", content: "" });
 
-  // Billing state
   const [billingMonth, setBillingMonth] = useState(new Date().toISOString().slice(0, 7));
   const [waterRates, setWaterRates] = useState<{ [key: string]: number }>({});
 
   const fetchData = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return navigate({ to: "/caretaker-login" });
 
+      // 1. Fetch Profile
       const { data: profileData } = await supabase
         .from("profiles")
         .select("full_name")
@@ -85,10 +75,12 @@ function CaretakerDashboard() {
         .maybeSingle();
       if (profileData) setProfile(profileData);
 
+      // 2. Fetch Property Assignment (USING EMAIL INSTEAD OF USER_ID)
       const { data: staffData, error: staffError } = await supabase
         .from("property_staff")
         .select("property_id, property:properties(name, location, owner_id)")
-        .eq("user_id", user.id)
+        .eq("email", user.email || "")
+        .limit(1)
         .maybeSingle();
 
       if (staffError) throw new Error(staffError.message);
@@ -102,6 +94,7 @@ function CaretakerDashboard() {
       setLoadError(null);
       const propId = staffData.property_id;
 
+      // 3. Fetch Tenants
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("*")
@@ -111,6 +104,7 @@ function CaretakerDashboard() {
       if (tenantError) throw new Error(tenantError.message);
       if (tenantData) setTenants(tenantData);
 
+      // 4. Fetch Issues
       const { data: issueData } = await supabase
         .from("issues")
         .select("*, tenant:tenants(name)")
@@ -120,16 +114,12 @@ function CaretakerDashboard() {
       if (issueData)
         setIssues(issueData.map((i: any) => ({ ...i, tenant_name: i.tenant?.name || "Unknown" })));
 
+      // 5. Fetch Financial Stats
       if (tenantData && tenantData.length > 0) {
         const tenantIds = tenantData.map((t) => t.id);
-
-        // Calculate Expected Rent
         const expectedRent = tenantData.reduce((sum, t) => sum + Number(t.rent), 0);
-
-        // Calculate Total Arrears
         const totalArrears = tenantData.reduce((sum, t) => sum + Number(t.balance), 0);
 
-        // Calculate Collected This Month (Filtered by current month)
         const { data: payments } = await supabase
           .from("payments")
           .select("amount, paid_on")
@@ -168,21 +158,20 @@ function CaretakerDashboard() {
     e.preventDefault();
     if (!property) return;
 
-    // Re-fetch the exact property_id from property_staff to prevent "Unknown property" errors
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return toast.error("Your session expired. Please sign in again.");
+    
+    // FIXED: use email instead of user_id, and maybeSingle
     const { data: staffData } = await supabase
       .from("property_staff")
       .select("property_id")
-      .eq("user_id", user.id)
-      .single();
+      .eq("email", user.email || "")
+      .maybeSingle();
 
     if (!staffData) return toast.error("Could not verify property");
 
     const { error } = await supabase.from("tenants").insert({
-      property_id: staffData.property_id, // Use the verified ID
+      property_id: staffData.property_id,
       owner_id: property.owner_id,
       name: newTenant.name,
       phone: newTenant.phone,
@@ -215,15 +204,16 @@ function CaretakerDashboard() {
   const handleSendNotice = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!property || !notice.content) return;
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+    
+    // FIXED: use email and maybeSingle here too
     const { data: staffData } = await supabase
       .from("property_staff")
       .select("property_id")
-      .eq("user_id", user.id)
-      .single();
+      .eq("email", user.email || "")
+      .maybeSingle();
+      
     if (!staffData) return toast.error("Could not verify property ID");
 
     const { error } = await supabase.from("announcements").insert({
@@ -260,6 +250,7 @@ function CaretakerDashboard() {
         Loading caretaker portal...
       </div>
     );
+    
   if (!property)
     return (
       <div className="portal-theme grid min-h-screen place-items-center bg-[#f7f4eb] p-6 text-center font-medium text-red-700">
@@ -345,70 +336,31 @@ function CaretakerDashboard() {
               <form onSubmit={handleAddTenant} className="space-y-4">
                 <div>
                   <Label>Name</Label>
-                  <Input
-                    required
-                    value={newTenant.name}
-                    onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })}
-                    className="bg-slate-50"
-                  />
+                  <Input required value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} className="bg-slate-50" />
                 </div>
                 <div>
                   <Label>Phone</Label>
-                  <Input
-                    required
-                    value={newTenant.phone}
-                    onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })}
-                    className="bg-slate-50"
-                  />
+                  <Input required value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} className="bg-slate-50" />
                 </div>
                 <div>
                   <Label>Unit</Label>
-                  <Input
-                    required
-                    placeholder="e.g. A1"
-                    value={newTenant.unit}
-                    onChange={(e) => setNewTenant({ ...newTenant, unit: e.target.value })}
-                    className="bg-slate-50"
-                  />
+                  <Input required placeholder="e.g. A1" value={newTenant.unit} onChange={(e) => setNewTenant({ ...newTenant, unit: e.target.value })} className="bg-slate-50" />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <Label>Rent</Label>
-                    <Input
-                      type="number"
-                      required
-                      value={newTenant.rent || ""}
-                      onChange={(e) => setNewTenant({ ...newTenant, rent: Number(e.target.value) })}
-                      className="bg-slate-50"
-                    />
+                    <Input type="number" required value={newTenant.rent || ""} onChange={(e) => setNewTenant({ ...newTenant, rent: Number(e.target.value) })} className="bg-slate-50" />
                   </div>
                   <div>
                     <Label>Water</Label>
-                    <Input
-                      type="number"
-                      value={newTenant.water || ""}
-                      onChange={(e) =>
-                        setNewTenant({ ...newTenant, water: Number(e.target.value) })
-                      }
-                      className="bg-slate-50"
-                    />
+                    <Input type="number" value={newTenant.water || ""} onChange={(e) => setNewTenant({ ...newTenant, water: Number(e.target.value) })} className="bg-slate-50" />
                   </div>
                   <div>
                     <Label>Garbage</Label>
-                    <Input
-                      type="number"
-                      value={newTenant.garbage || ""}
-                      onChange={(e) =>
-                        setNewTenant({ ...newTenant, garbage: Number(e.target.value) })
-                      }
-                      className="bg-slate-50"
-                    />
+                    <Input type="number" value={newTenant.garbage || ""} onChange={(e) => setNewTenant({ ...newTenant, garbage: Number(e.target.value) })} className="bg-slate-50" />
                   </div>
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-2"
-                >
+                <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-2">
                   Save Tenant
                 </Button>
               </form>
@@ -420,10 +372,7 @@ function CaretakerDashboard() {
               </div>
               <div className="divide-y divide-slate-100">
                 {tenants.map((t) => (
-                  <div
-                    key={t.id}
-                    className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
-                  >
+                  <div key={t.id} className="p-5 flex items-center justify-between hover:bg-slate-50 transition-colors">
                     <div>
                       <p className="font-bold text-slate-900 flex items-center gap-2">
                         {t.name}{" "}
@@ -438,26 +387,17 @@ function CaretakerDashboard() {
                         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                           Balance
                         </p>
-                        <p
-                          className={`font-bold ${t.balance > 0 ? "text-red-600" : "text-emerald-600"}`}
-                        >
+                        <p className={`font-bold ${t.balance > 0 ? "text-red-600" : "text-emerald-600"}`}>
                           KES {t.balance.toLocaleString()}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteTenant(t.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2"
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => handleDeleteTenant(t.id)} className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 px-2">
                         <Trash2 className="h-4 w-4 mr-1" /> Delete
                       </Button>
                     </div>
                   </div>
                 ))}
-                {tenants.length === 0 && (
-                  <p className="p-10 text-center text-slate-500">No tenants found.</p>
-                )}
+                {tenants.length === 0 && <p className="p-10 text-center text-slate-500">No tenants found.</p>}
               </div>
             </div>
           </div>
@@ -472,12 +412,7 @@ function CaretakerDashboard() {
               </h2>
               <div className="flex items-center gap-2">
                 <Label className="text-xs font-semibold">Billing Month</Label>
-                <Input
-                  type="month"
-                  value={billingMonth}
-                  onChange={(e) => setBillingMonth(e.target.value)}
-                  className="w-40 h-8 text-sm"
-                />
+                <Input type="month" value={billingMonth} onChange={(e) => setBillingMonth(e.target.value)} className="w-40 h-8 text-sm" />
               </div>
             </div>
 
@@ -488,10 +423,7 @@ function CaretakerDashboard() {
                 const totalBill = Number(t.rent) + waterCost + Number(t.garbage);
 
                 return (
-                  <div
-                    key={t.id}
-                    className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-colors"
-                  >
+                  <div key={t.id} className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-slate-50 transition-colors">
                     <div className="flex-1">
                       <p className="font-bold text-slate-900 flex items-center gap-2">
                         {t.name}{" "}
@@ -500,15 +432,9 @@ function CaretakerDashboard() {
                         </span>
                       </p>
                       <div className="flex gap-4 mt-2 text-sm">
-                        <span className="text-slate-500">
-                          Rent: <strong className="text-slate-800">KES {t.rent}</strong>
-                        </span>
-                        <span className="text-slate-500">
-                          Garbage: <strong className="text-slate-800">KES {t.garbage}</strong>
-                        </span>
-                        <span className="text-red-500">
-                          Arrears: <strong>KES {t.balance}</strong>
-                        </span>
+                        <span className="text-slate-500">Rent: <strong className="text-slate-800">KES {t.rent}</strong></span>
+                        <span className="text-slate-500">Garbage: <strong className="text-slate-800">KES {t.garbage}</strong></span>
+                        <span className="text-red-500">Arrears: <strong>KES {t.balance}</strong></span>
                       </div>
                     </div>
 
@@ -517,46 +443,27 @@ function CaretakerDashboard() {
                         <Label className="text-xs font-semibold text-blue-800 flex items-center gap-1">
                           <Droplets className="h-3 w-3" /> Water Units Used
                         </Label>
-                        <Input
-                          type="number"
-                          placeholder="0"
-                          value={units || ""}
-                          onChange={(e) =>
-                            setWaterRates({ ...waterRates, [t.id]: Number(e.target.value) })
-                          }
-                          className="w-24 h-8 mt-1 bg-white border-blue-200"
-                        />
+                        <Input type="number" placeholder="0" value={units || ""} onChange={(e) => setWaterRates({ ...waterRates, [t.id]: Number(e.target.value) })} className="w-24 h-8 mt-1 bg-white border-blue-200" />
                       </div>
                       <div className="text-right">
                         <p className="text-xs font-semibold text-blue-600">Cost @ 150/unit</p>
-                        <p className="font-bold text-blue-900 text-sm">
-                          KES {waterCost.toLocaleString()}
-                        </p>
+                        <p className="font-bold text-blue-900 text-sm">KES {waterCost.toLocaleString()}</p>
                       </div>
                     </div>
 
                     <div className="flex flex-col items-end gap-2 min-w-[120px]">
                       <div className="text-right mb-1">
-                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                          New Total Due
-                        </p>
-                        <p className="font-bold text-slate-900 text-lg">
-                          KES {totalBill.toLocaleString()}
-                        </p>
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">New Total Due</p>
+                        <p className="font-bold text-slate-900 text-lg">KES {totalBill.toLocaleString()}</p>
                       </div>
-                      <Button
-                        onClick={() => handleGenerateBill(t)}
-                        className="w-full bg-slate-900 hover:bg-slate-800 text-white"
-                      >
+                      <Button onClick={() => handleGenerateBill(t)} className="w-full bg-slate-900 hover:bg-slate-800 text-white">
                         <Receipt className="h-4 w-4 mr-2" /> Generate Bill
                       </Button>
                     </div>
                   </div>
                 );
               })}
-              {tenants.length === 0 && (
-                <p className="p-10 text-center text-slate-500">No tenants found.</p>
-              )}
+              {tenants.length === 0 && <p className="p-10 text-center text-slate-500">No tenants found.</p>}
             </div>
           </div>
         )}
@@ -568,48 +475,27 @@ function CaretakerDashboard() {
               <h2 className="text-xl font-bold text-slate-900">Financial Overview</h2>
               <div className="flex items-center gap-2">
                 <Label>Month:</Label>
-                <Input
-                  type="month"
-                  value={financeMonth}
-                  onChange={(e) => setFinanceMonth(e.target.value)}
-                  className="w-40"
-                />
+                <Input type="month" value={financeMonth} onChange={(e) => setFinanceMonth(e.target.value)} className="w-40" />
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Expected Rent
-                </p>
-                <p className="text-3xl font-bold text-slate-900">
-                  KES {stats.expectedRentThisMonth.toLocaleString()}
-                </p>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Expected Rent</p>
+                <p className="text-3xl font-bold text-slate-900">KES {stats.expectedRentThisMonth.toLocaleString()}</p>
                 <p className="text-xs text-slate-400 mt-2">Based on monthly rent of all tenants.</p>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Collected This Month
-                </p>
-                <p className="text-3xl font-bold text-slate-900">
-                  KES {stats.collectedThisMonth.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Only payments received in the selected month.
-                </p>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Collected This Month</p>
+                <p className="text-3xl font-bold text-slate-900">KES {stats.collectedThisMonth.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-2">Only payments received in the selected month.</p>
               </div>
 
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-red-500">
-                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                  Total Arrears
-                </p>
-                <p className="text-3xl font-bold text-slate-900">
-                  KES {stats.totalArrears.toLocaleString()}
-                </p>
-                <p className="text-xs text-slate-400 mt-2">
-                  Total unpaid balance across all tenants.
-                </p>
+                <p className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-2">Total Arrears</p>
+                <p className="text-3xl font-bold text-slate-900">KES {stats.totalArrears.toLocaleString()}</p>
+                <p className="text-xs text-slate-400 mt-2">Total unpaid balance across all tenants.</p>
               </div>
             </div>
           </div>
@@ -623,44 +509,25 @@ function CaretakerDashboard() {
             </div>
             <div className="divide-y divide-slate-100">
               {issues.map((issue) => (
-                <div
-                  key={issue.id}
-                  className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors"
-                >
+                <div key={issue.id} className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors">
                   <div>
                     <p className="font-bold text-slate-900">{issue.title}</p>
-                    <p className="text-sm text-slate-500 mt-1">
-                      Reported by: {issue.tenant_name} •{" "}
-                      {new Date(issue.created_at).toLocaleDateString()}
-                    </p>
+                    <p className="text-sm text-slate-500 mt-1">Reported by: {issue.tenant_name} • {new Date(issue.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span
-                      className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${issue.status === "open" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}
-                    >
-                      {issue.status === "open" ? (
-                        <AlertCircle className="h-3 w-3" />
-                      ) : (
-                        <CheckCircle className="h-3 w-3" />
-                      )}{" "}
+                    <span className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${issue.status === "open" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
+                      {issue.status === "open" ? <AlertCircle className="h-3 w-3" /> : <CheckCircle className="h-3 w-3" />}{" "}
                       {issue.status.toUpperCase()}
                     </span>
                     {issue.status !== "resolved" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleResolveIssue(issue.id)}
-                        className="border-slate-200 text-slate-600"
-                      >
+                      <Button size="sm" variant="outline" onClick={() => handleResolveIssue(issue.id)} className="border-slate-200 text-slate-600">
                         Resolve
                       </Button>
                     )}
                   </div>
                 </div>
               ))}
-              {issues.length === 0 && (
-                <p className="p-10 text-center text-slate-500">No maintenance issues reported.</p>
-              )}
+              {issues.length === 0 && <p className="p-10 text-center text-slate-500">No maintenance issues reported.</p>}
             </div>
           </div>
         )}
@@ -684,38 +551,20 @@ function CaretakerDashboard() {
             <form onSubmit={handleSendNotice} className="space-y-5">
               <div>
                 <Label>Send To</Label>
-                <select
-                  className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                  value={notice.target}
-                  onChange={(e) => setNotice({ ...notice, target: e.target.value })}
-                >
+                <select className="flex h-10 w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" value={notice.target} onChange={(e) => setNotice({ ...notice, target: e.target.value })}>
                   <option value="all">All Tenants in Building</option>
                   {tenants.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      Unit {t.unit} - {t.name}
-                    </option>
+                    <option key={t.id} value={t.id}>Unit {t.unit} - {t.name}</option>
                   ))}
                 </select>
               </div>
               <div>
                 <Label>Title</Label>
-                <Input
-                  required
-                  placeholder="e.g. Water Maintenance"
-                  value={notice.title}
-                  onChange={(e) => setNotice({ ...notice, title: e.target.value })}
-                  className="bg-slate-50 mt-1"
-                />
+                <Input required placeholder="e.g. Water Maintenance" value={notice.title} onChange={(e) => setNotice({ ...notice, title: e.target.value })} className="bg-slate-50 mt-1" />
               </div>
               <div>
                 <Label>Message</Label>
-                <textarea
-                  className="flex min-h-[120px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
-                  placeholder="e.g. Water will be shut off tomorrow..."
-                  value={notice.content}
-                  onChange={(e) => setNotice({ ...notice, content: e.target.value })}
-                  required
-                />
+                <textarea className="flex min-h-[120px] w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm mt-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" placeholder="e.g. Water will be shut off tomorrow..." value={notice.content} onChange={(e) => setNotice({ ...notice, content: e.target.value })} required />
               </div>
               <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 Send Notice
@@ -735,11 +584,7 @@ function TenantDocumentList({ tenant }: { tenant: any }) {
   const [uploading, setUploading] = useState(false);
 
   const fetchDocs = async () => {
-    const { data } = await supabase
-      .from("documents")
-      .select("*")
-      .eq("tenant_id", tenant.id)
-      .order("created_at", { ascending: false });
+    const { data } = await supabase.from("documents").select("*").eq("tenant_id", tenant.id).order("created_at", { ascending: false });
     if (data) setDocuments(data);
   };
 
@@ -750,9 +595,7 @@ function TenantDocumentList({ tenant }: { tenant: any }) {
   const handleUpload = async () => {
     if (!file) return toast.error("Select a file first");
     setUploading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
 
     const path = `${tenant.id}/${Date.now()}-${file.name.replace(/[^\w.-]/g, "_")}`;
     const s = await supabase.storage.from("Documents").upload(path, file, { upsert: false });
@@ -782,25 +625,17 @@ function TenantDocumentList({ tenant }: { tenant: any }) {
 
   const handleOpenDoc = async (url: string) => {
     if (!url.startsWith("tenant-docs:")) return window.open(url, "_blank");
-    const { data, error } = await supabase.storage
-      .from("Documents")
-      .createSignedUrl(url.slice(12), 300);
+    const { data, error } = await supabase.storage.from("Documents").createSignedUrl(url.slice(12), 300);
     if (error) return toast.error(error.message);
     window.open(data.signedUrl, "_blank");
   };
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
-      <h3 className="font-bold text-slate-900 mb-4">
-        {tenant.name} (Unit {tenant.unit})
-      </h3>
+      <h3 className="font-bold text-slate-900 mb-4">{tenant.name} (Unit {tenant.unit})</h3>
 
       <div className="flex gap-2 mb-4">
-        <Input
-          type="file"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="bg-slate-50 max-w-sm"
-        />
+        <Input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="bg-slate-50 max-w-sm" />
         <Button onClick={handleUpload} disabled={uploading} className="bg-slate-900 text-white">
           <Upload className="h-4 w-4 mr-2" /> {uploading ? "Uploading..." : "Post Agreement"}
         </Button>
@@ -812,16 +647,10 @@ function TenantDocumentList({ tenant }: { tenant: any }) {
             <span className="flex items-center gap-2 font-medium">
               <FileText className="h-4 w-4 text-slate-400" /> {doc.title}
             </span>
-            <Button variant="link" size="sm" onClick={() => handleOpenDoc(doc.url)}>
-              View / Download
-            </Button>
+            <Button variant="link" size="sm" onClick={() => handleOpenDoc(doc.url)}>View / Download</Button>
           </div>
         ))}
-        {documents.length === 0 && (
-          <p className="p-3 text-slate-500 text-sm text-center">
-            No documents uploaded for this tenant yet.
-          </p>
-        )}
+        {documents.length === 0 && <p className="p-3 text-slate-500 text-sm text-center">No documents uploaded for this tenant yet.</p>}
       </div>
     </div>
   );
