@@ -1,1 +1,0 @@
-import{t as e}from"./jsx-runtime-By8HlURe.js";var t=e(),n=({error:e})=>(0,t.jsxs)(`div`,{role:`alert`,className:`m-6 rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800`,children:[`The portfolio overview could not be loaded: `,e.message]});export{n as errorComponent};
