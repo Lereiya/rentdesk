@@ -164,9 +164,6 @@ function CaretakerDashboard() {
     navigate({ to: "/caretaker-login" });
   };
 
-  // ==========================================
-  // THIS IS THE ONLY FUNCTION THAT WAS CHANGED
-  // ==========================================
   const handleAddTenant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!property) return;
@@ -200,7 +197,6 @@ function CaretakerDashboard() {
     setNewTenant({ name: "", phone: "", unit: "", rent: 0, water: 0, garbage: 0 });
     fetchData();
   };
-  // ==========================================
 
   const handleDeleteTenant = async (id: string) => {
     if (!confirm("Are you sure you want to delete this tenant?")) return;
