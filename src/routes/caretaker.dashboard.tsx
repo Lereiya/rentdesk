@@ -108,12 +108,18 @@ function CaretakerDashboard() {
       // 4. Fetch Issues
       const { data: issueData } = await supabase
         .from("issues")
-        .select("*, tenant:tenants(name)")
+        .select("*, tenant:tenants(name, unit)")
         .eq("property_id", propId)
         .order("created_at", { ascending: false });
 
       if (issueData) {
-        setIssues(issueData.map((i: any) => ({ ...i, tenant_name: i.tenant?.name || "Unknown" })));
+        setIssues(
+          issueData.map((i: any) => ({
+            ...i,
+            tenant_name: i.tenant?.name || "Unknown",
+            tenant_unit: i.tenant?.unit,
+          })),
+        );
         setHasUnreadIssues(
           activeTab !== "issues" && issueData.some((issue: any) => issue.status === "open"),
         );
@@ -528,7 +534,13 @@ function CaretakerDashboard() {
                   <div>
                     <p className="font-bold text-slate-900">{issue.title}</p>
                     <p className="mt-1 text-sm text-slate-600">{issue.description}</p>
-                    <p className="text-sm text-slate-500 mt-1">Reported by: {issue.tenant_name} • {new Date(issue.created_at).toLocaleDateString()}</p>
+                    <p className="mt-1 text-sm font-semibold text-slate-700">
+                      Reported by: {issue.tenant_name}
+                      {issue.tenant_unit && ` • House ${issue.tenant_unit}`}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {new Date(issue.created_at).toLocaleDateString()}
+                    </p>
                   </div>
                   <div className="flex items-center gap-4">
                     <span className={`text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 ${issue.status === "open" ? "bg-red-100 text-red-700" : "bg-emerald-100 text-emerald-700"}`}>
