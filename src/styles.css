@@ -1,0 +1,166 @@
+@import "tailwindcss";
+
+@theme {
+  /* Base Colors */
+  --color-background: #f7f4eb;
+  --color-foreground: #17261c;
+
+  /* Card Colors */
+  --color-card: #fffefa;
+  --color-card-foreground: #17261c;
+
+  /* Primary brand color */
+  --color-primary: #145632;
+  --color-primary-foreground: #ffffff;
+
+  /* Secondary Colors */
+  --color-secondary: #eee9dd;
+  --color-secondary-foreground: #17261c;
+
+  /* Muted / Subdued Colors */
+  --color-muted: #eee9dd;
+  --color-muted-foreground: #69746c;
+
+  /* Accent Colors */
+  --color-accent: #eee9dd;
+  --color-accent-foreground: #17261c;
+
+  /* Danger / Error Colors */
+  --color-destructive: #ef4444;
+  --color-destructive-foreground: #ffffff;
+
+  /* Borders and Inputs */
+  --color-border: #e5dfd3;
+  --color-input: #e5dfd3;
+  --color-ring: #145632;
+
+  /* Border Radius */
+  --radius-lg: 0.5rem;
+  --radius-md: 0.375rem;
+  --radius-sm: 0.25rem;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+    box-sizing: border-box;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family:
+      "Manrope",
+      system-ui,
+      -apple-system,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.5;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Modern scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #cbd5e1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #94a3b8;
+  }
+}
+
+.portal-theme [class~="bg-slate-50"],
+.portal-theme [class~="bg-slate-50/50"] {
+  background-color: #f7f4eb;
+}
+
+.portal-theme [class~="bg-white"] {
+  background-color: #fffefa;
+}
+
+.portal-theme [class~="bg-slate-100"],
+.portal-theme [class~="bg-slate-100/70"] {
+  background-color: #eee9dd;
+}
+
+.portal-theme [class~="text-slate-900"],
+.portal-theme [class~="text-slate-800"],
+.portal-theme [class~="text-slate-700"] {
+  color: #17261c;
+}
+
+.portal-theme [class~="text-slate-600"],
+.portal-theme [class~="text-slate-500"],
+.portal-theme [class~="text-slate-400"] {
+  color: #69746c;
+}
+
+.portal-theme [class~="border-slate-200"],
+.portal-theme [class~="border-slate-200/80"],
+.portal-theme [class~="border-slate-100"] {
+  border-color: #e5dfd3;
+}
+
+.portal-theme [class~="bg-blue-600"],
+.portal-theme [class~="bg-indigo-600"],
+.portal-theme [class~="bg-blue-700"] {
+  background-color: #145632;
+}
+
+.portal-theme [class~="bg-blue-50"],
+.portal-theme [class~="bg-indigo-50"],
+.portal-theme [class~="bg-sky-50"] {
+  background-color: #e4ece4;
+}
+
+.portal-theme [class~="text-blue-600"],
+.portal-theme [class~="text-indigo-600"],
+.portal-theme [class~="text-sky-600"] {
+  color: #315d40;
+}
+
+.portal-theme [class~="border-blue-600"],
+.portal-theme [class~="border-indigo-600"] {
+  border-color: #d6aa59;
+}
+
+.portal-theme [class~="bg-gradient-to-br"] {
+  background-image: linear-gradient(135deg, #145632, #0c2918);
+}
+
+.portal-theme [class~="hover:bg-blue-700"]:hover,
+.portal-theme [class~="hover:bg-indigo-700"]:hover {
+  background-color: #104728;
+}
+
+.portal-theme [class~="hover:bg-slate-50"]:hover,
+.portal-theme [class~="hover:bg-slate-50/70"]:hover {
+  background-color: #f7f4eb;
+}
+
+.portal-theme input:focus-visible,
+.portal-theme textarea:focus-visible,
+.portal-theme select:focus-visible,
+.portal-theme button:focus-visible {
+  outline-color: #145632;
+}
+
+.month-picker::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  margin: 0;
+  padding: 2px;
+}

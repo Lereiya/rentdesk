@@ -1,0 +1,1 @@
+import{t as e}from"./jsx-runtime-By8HlURe.js";import{t}from"./LoginCard-BKlSrZpw.js";var n=e(),r=()=>(0,n.jsx)(t,{portal:`tenant`});export{r as component};

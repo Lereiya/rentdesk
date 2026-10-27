@@ -1,0 +1,1 @@
+import{n as e}from"./rolldown-runtime-QTnfLwEv.js";import{r as t}from"./redirect-DmtLUW0N.js";var n=e({redirect:()=>t,rootRouteId:()=>rootRouteId});export{n as t};
