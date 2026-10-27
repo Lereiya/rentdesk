@@ -41,6 +41,7 @@ function CaretakerDashboard() {
   const [property, setProperty] = useState<any>(null);
   const [tenants, setTenants] = useState<any[]>([]);
   const [issues, setIssues] = useState<any[]>([]);
+  const [hasUnreadIssues, setHasUnreadIssues] = useState(false);
 
   const [stats, setStats] = useState({
     collectedThisMonth: 0,
@@ -111,8 +112,12 @@ function CaretakerDashboard() {
         .eq("property_id", propId)
         .order("created_at", { ascending: false });
 
-      if (issueData)
+      if (issueData) {
         setIssues(issueData.map((i: any) => ({ ...i, tenant_name: i.tenant?.name || "Unknown" })));
+        setHasUnreadIssues(
+          activeTab !== "issues" && issueData.some((issue: any) => issue.status === "open"),
+        );
+      }
 
       // 5. Fetch Financial Stats
       if (tenantData && tenantData.length > 0) {
@@ -270,6 +275,8 @@ function CaretakerDashboard() {
       </div>
     );
 
+  const openIssueCount = issues.filter((issue) => issue.status === "open").length;
+
   return (
     <div className="portal-theme flex min-h-screen flex-col bg-[#f7f4eb] text-[#17261c]">
       <header className="sticky top-0 z-10 border-b border-[#1e422b] bg-[#0c2918] px-4 py-3 sm:px-6">
@@ -311,7 +318,10 @@ function CaretakerDashboard() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
+              onClick={() => {
+                setActiveTab(tab.id as any);
+                if (tab.id === "issues") setHasUnreadIssues(false);
+              }}
               aria-current={activeTab === tab.id ? "page" : undefined}
               className={`flex shrink-0 items-center gap-2 border-b-2 px-3 py-3 font-semibold text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#d6aa59] sm:text-sm ${
                 activeTab === tab.id
@@ -320,6 +330,11 @@ function CaretakerDashboard() {
               }`}
             >
               <tab.icon className="h-4 w-4" /> {tab.label}
+              {tab.id === "issues" && hasUnreadIssues && openIssueCount > 0 && (
+                <span className="rounded-full bg-red-500 px-1.5 text-xs text-white">
+                  {openIssueCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -512,6 +527,7 @@ function CaretakerDashboard() {
                 <div key={issue.id} className="p-6 flex justify-between items-center hover:bg-slate-50 transition-colors">
                   <div>
                     <p className="font-bold text-slate-900">{issue.title}</p>
+                    <p className="mt-1 text-sm text-slate-600">{issue.description}</p>
                     <p className="text-sm text-slate-500 mt-1">Reported by: {issue.tenant_name} • {new Date(issue.created_at).toLocaleDateString()}</p>
                   </div>
                   <div className="flex items-center gap-4">

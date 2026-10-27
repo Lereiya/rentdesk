@@ -67,6 +67,7 @@ function Portal() {
   const { data: docs } = useSuspenseQuery(documentsQuery);
   const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
+  const [hasSeenNotifications, setHasSeenNotifications] = useState(false);
   const [title, setTitle] = useState("");
   const [desc, setDesc] = useState("");
 
@@ -155,12 +156,15 @@ function Portal() {
         {tabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => setTab(id)}
+            onClick={() => {
+              setTab(id);
+              if (id === "notifications") setHasSeenNotifications(true);
+            }}
             className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm ${tab === id ? "bg-primary-soft font-semibold text-primary" : "text-muted-foreground"}`}
           >
             <Icon className="h-4 w-4" />
             {label}
-            {id === "notifications" && notifications.length > 0 && (
+            {id === "notifications" && !hasSeenNotifications && notifications.length > 0 && (
               <span className="rounded-full bg-primary px-1.5 text-xs text-primary-foreground">
                 {notifications.length}
               </span>
